@@ -3,6 +3,7 @@
  * Centralized middleware and routing
  */
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const logger = require('./middleware/logger');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -14,42 +15,24 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Middleware
-app.use(cors()); // Enable frontend connections
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse form data
-app.use(logger); // Request logging
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(logger);
+
+// 🌐 Serve static frontend files from /public
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // API Routes
 app.use('/api', routes);
 
-// Root info endpoint
-app.get('/', (req, res) => {
-  res.json({
-    name: 'Jamii Link KE API',
-    version: '1.0.0',
-    description: 'Unified platform for Mtaani alerts, Skill swaps, Farm markets & Gigs',
-    categories: ['mtaani', 'skill', 'farm', 'gig', 'alert'],
-    endpoints: {
-      health: 'GET /api/health',
-      posts: 'GET /api/posts?category=farm&location=Kiambu',
-      market: 'GET /api/market/prices?crop=tomato',
-      docs: 'See README.md'
-    }
-  });
+// SPA Fallback: Send index.html for any non-API routes
+// (Allows frontend routing without 404 on refresh)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found',
-    path: req.originalUrl,
-    method: req.method,
-    hint: 'Try /api/posts, /api/market/prices, or /api/health'
-  });
-});
-
-// Error Handler (must be last)
+// Error Handler (last)
 app.use(errorHandler);
 
 module.exports = app;
