@@ -3,17 +3,22 @@
  * Loads environment and starts Express app
  */
 require('dotenv').config();
-const connectDB = require('./src/config/database');
+const { connectDB } = require('./src/config/postgres');
+const { createTables } = require('./src/database/schema');
 const app = require('./src/app');
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Connect to MongoDB first, then start server
+// Connect to PostgreSQL first, then start server
 const startServer = async () => {
   try {
     await connectDB();
     console.log('✅ Database connected successfully\n');
+    
+    // Create tables if they don't exist (idempotent)
+    await createTables();
+    console.log('✅ Database schema initialized\n');
     
     app.listen(PORT, () => {
       console.log(`🚀 Jamii Link KE API running in ${NODE_ENV} mode`);
