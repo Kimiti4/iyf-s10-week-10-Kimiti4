@@ -3,9 +3,9 @@
  */
 const express = require('express');
 const router = express.Router();
-const postsController = require('../controllers/postsController');
+const postsController = require('../controllers/postsControllerPG'); // PostgreSQL version
 const { validatePost, validateComment } = require('../middleware/validate');
-const { protect, optionalAuth } = require('../middleware/auth');
+const { protect, optionalAuth } = require('../middleware/authPG'); // PostgreSQL version
 
 // Public routes (can optionally show user info if authenticated)
 router.get('/', optionalAuth, postsController.getAllPosts);
