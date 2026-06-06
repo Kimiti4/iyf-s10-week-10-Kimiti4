@@ -2,7 +2,7 @@
  * 🔹 Comment Queries - PostgreSQL
  * Replaces Mongoose Comment model with SQL queries
  */
-const { query } = require('../config/postgres');
+const { query } = require('../../config/postgres');
 
 class CommentRepository {
   /**

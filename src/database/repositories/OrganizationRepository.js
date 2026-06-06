@@ -2,7 +2,7 @@
  * 🔹 Organization Queries - PostgreSQL
  * Handles multi-tenant organization management
  */
-const { query } = require('../config/postgres');
+const { query } = require('../../config/postgres');
 
 class OrganizationRepository {
   /**

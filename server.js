@@ -1,11 +1,13 @@
 /**
  * 🔹 Week 10 Entry Point
- * Loads environment and starts Express app
+ * Loads environment and starts Express app with Socket.IO
  */
 require('dotenv').config();
+const http = require('http');
 const { connectDB } = require('./src/config/postgres');
 const { createTables } = require('./src/database/schema');
 const app = require('./src/app');
+const { initializeSocketIO } = require('./src/services/socketService');
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -13,6 +15,12 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // Connect to PostgreSQL first, then start server
 const startServer = async () => {
   try {
+    console.log('🔧 Starting Jamii Link KE API...');
+    console.log(`📍 Working directory: ${process.cwd()}`);
+    console.log(`🌍 NODE_ENV: ${NODE_ENV}`);
+    console.log(`🔑 PORT: ${PORT}`);
+    console.log(`💾 DATABASE_URL: ${process.env.DATABASE_URL ? 'Set' : 'NOT SET'}`);
+    
     await connectDB();
     console.log('✅ Database connected successfully\n');
     
@@ -20,19 +28,60 @@ const startServer = async () => {
     await createTables();
     console.log('✅ Database schema initialized\n');
     
-    app.listen(PORT, () => {
-      console.log(`🚀 Jamii Link KE API running in ${NODE_ENV} mode`);
-      console.log(`🌐 Server: http://localhost:${PORT}`);
-      console.log(`📊 Health: http://localhost:${PORT}/api/health`);
-      console.log(`🏢 Organizations: http://localhost:${PORT}/api/organizations`);
-      console.log(` Posts: http://localhost:${PORT}/api/posts`);
-      console.log(`👥 Users: http://localhost:${PORT}/api/users`);
-      console.log(`🌾 Farm Prices: http://localhost:${PORT}/api/market/prices`);
-      console.log(`💡 Tip: Use category=mtaani|skill|farm|gig to filter posts`);
-      console.log(`🔑 Create org: POST /api/organizations with auth token`);
+    // Create HTTP server
+    const server = http.createServer(app);
+    console.log('✅ HTTP server created\n');
+    
+    // Initialize Socket.IO for realtime features
+    try {
+      initializeSocketIO(server);
+      console.log('🔌 Realtime system ready\n');
+    } catch (error) {
+      console.error('⚠️  Socket.IO initialization failed (non-critical):', error.message);
+      console.error('   Server will continue without realtime features\n');
+    }
+    
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log('='.repeat(60));
+      console.log(' Jamii Link KE API running in ${NODE_ENV} mode');
+      console.log(' Server listening on 0.0.0.0:${PORT}');
+      console.log(' Railway can now route to this service');
+      console.log(' Health endpoint: http://0.0.0.0:${PORT}/api/health');
+      console.log('='.repeat(60));
+      console.log(' Organizations: http://0.0.0.0:${PORT}/api/organizations');
+      console.log(' Posts: http://0.0.0.0:${PORT}/api/posts');
+      console.log(' Users: http://0.0.0.0:${PORT}/api/users');
+      console.log(' Farm Prices: http://0.0.0.0:${PORT}/api/market/prices');
+      console.log('🚨 Alerts: http://0.0.0.0:${PORT}/api/alerts');
+      console.log('='.repeat(60));
+      console.log('💡 Tip: Use category=mtaani|skill|farm|gig to filter posts');
+      console.log('🔑 Create org: POST /api/organizations with auth token');
+      console.log('='.repeat(60));
+      console.log('✅ SERVER IS READY - Railway should be able to connect!\n');
+    });
+
+    // Handle server errors (critical for debugging)
+    server.on('error', (error) => {
+      console.error('❌ SERVER ERROR:', error.message);
+      console.error('Error code:', error.code);
+      console.error('Error address:', error.address);
+      console.error('Error port:', error.port);
+      console.error('Full error:', JSON.stringify(error, null, 2));
+    });
+
+    // Verify server is actually listening
+    server.on('listening', () => {
+      const addr = server.address();
+      console.log('✅ Server confirmed listening on:', addr);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
+    console.error('Stack trace:', error.stack);
+    console.error('\n💡 Common issues:');
+    console.error('   1. DATABASE_URL not set in Railway environment variables');
+    console.error('   2. PostgreSQL service not connected to this service');
+    console.error('   3. Invalid connection string format');
+    console.error('   4. Database service is down or unreachable');
     process.exit(1);
   }
 };

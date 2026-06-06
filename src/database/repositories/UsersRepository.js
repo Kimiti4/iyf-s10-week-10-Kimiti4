@@ -2,7 +2,7 @@
  * 🔹 User Queries - PostgreSQL
  * Extended UserRepository with admin/user management functions
  */
-const { query } = require('../config/postgres');
+const { query } = require('../../config/postgres');
 
 class UsersRepository {
   /**

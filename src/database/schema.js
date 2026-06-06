@@ -228,14 +228,34 @@ const createTables = async () => {
     `);
 
     // Create indexes for performance
-    console.log('📊 Creating indexes...');
-    
+    console.log(' Creating indexes...');
     await query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
+    
+    // Add current_organization_id column if it doesn't exist
+    try {
+      await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS current_organization_id UUID`);
+    } catch (err) {
+      console.log('ℹ️  Column current_organization_id may already exist or cannot be added');
+    }
     await query(`CREATE INDEX IF NOT EXISTS idx_users_current_org ON users(current_organization_id)`);
     
     await query(`CREATE INDEX IF NOT EXISTS idx_org_slug ON organizations(slug)`);
+    
+    // Add type column if it doesn't exist
+    try {
+      await query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS type VARCHAR(50)`);
+    } catch (err) {
+      console.log('ℹ️  Column type may already exist or cannot be added');
+    }
     await query(`CREATE INDEX IF NOT EXISTS idx_org_type ON organizations(type)`);
+    
+    // Add owner_id column if it doesn't exist
+    try {
+      await query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id)`);
+    } catch (err) {
+      console.log('ℹ️  Column owner_id may already exist or cannot be added');
+    }
     await query(`CREATE INDEX IF NOT EXISTS idx_org_owner ON organizations(owner_id)`);
     
     await query(`CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id)`);
@@ -244,6 +264,14 @@ const createTables = async () => {
     await query(`CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_posts_org ON posts(organization_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)`);
+    
+    // Add location columns if they don't exist
+    try {
+      await query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_county VARCHAR(100)`);
+      await query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_settlement VARCHAR(100)`);
+    } catch (err) {
+      console.log('ℹ️  Location columns may already exist or cannot be added');
+    }
     await query(`CREATE INDEX IF NOT EXISTS idx_posts_location ON posts(location_county, location_settlement)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_posts_tags ON posts USING GIN(tags)`);
@@ -254,8 +282,10 @@ const createTables = async () => {
     await query(`CREATE INDEX IF NOT EXISTS idx_mfa_user ON mfa_methods(user_id)`);
 
     console.log('✅ All tables and indexes created successfully!');
+    return true;
   } catch (error) {
-    console.error('❌ Error creating tables:', error);
+    console.error('❌ Error creating tables:', error.message);
+    console.error('Stack trace:', error.stack);
     throw error;
   }
 };

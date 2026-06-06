@@ -2,7 +2,7 @@
  * 🔹 User Queries - PostgreSQL
  * Replaces Mongoose User model with SQL queries
  */
-const { query, getClient } = require('../config/postgres');
+const { query, getClient } = require('../../config/postgres');
 const bcrypt = require('bcryptjs');
 
 class UserRepository {

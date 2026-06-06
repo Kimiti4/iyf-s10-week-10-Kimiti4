@@ -2,7 +2,7 @@
  * 🔹 Post Queries - PostgreSQL
  * Replaces Mongoose Post model with SQL queries
  */
-const { query } = require('../config/postgres');
+const { query } = require('../../config/postgres');
 
 class PostRepository {
   /**
