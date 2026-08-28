@@ -63,12 +63,14 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/api', routes);
 
 // Health check endpoint (not rate limited)
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const { query } = require('./config/postgres');
+    await query('SELECT 1');
+    res.json({ status: 'ok', db: true, timestamp: new Date().toISOString(), environment: process.env.NODE_ENV || 'development' });
+  } catch {
+    res.status(503).json({ status: 'degraded', db: false });
+  }
 });
 
 // SPA Fallback: Send index.html for any non-API routes
