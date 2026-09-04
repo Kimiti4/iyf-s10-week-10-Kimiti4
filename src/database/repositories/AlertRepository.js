@@ -1,6 +1,30 @@
 const { query } = require('../../config/postgres');
 
 class AlertRepository {
+  constructor() {
+    this._ftsAvailable = null;
+  }
+
+  /**
+   * Detect whether the alerts.search_vector column exists.
+   * Cached after first call so we don't query information_schema per request.
+   * Returns false if migration 004 has not been applied.
+   */
+  async _detectFts() {
+    if (this._ftsAvailable !== null) return this._ftsAvailable;
+    try {
+      const r = await query(`
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'alerts' AND column_name = 'search_vector'
+        LIMIT 1
+      `);
+      this._ftsAvailable = r.rows.length > 0;
+    } catch {
+      this._ftsAvailable = false;
+    }
+    return this._ftsAvailable;
+  }
+
   async find(filters = {}) {
     const values = [];
     const conditions = [];
@@ -22,11 +46,19 @@ class AlertRepository {
       conditions.push(`a.ward ILIKE $${index++}`); values.push(`%${filters.ward}%`);
     }
     if (filters.search) {
-      // Prefer full-text search via tsvector when available, fall back to ILIKE
-      conditions.push(`(a.search_vector @@ plainto_tsquery('english', $${index}) OR a.title ILIKE $${index + 1} OR a.description ILIKE $${index + 1})`);
-      values.push(filters.search);
-      values.push(`%${filters.search}%`);
-      index += 2;
+      // Real fallback: separate query paths based on actual schema capability
+      const fts = await this._detectFts();
+      if (fts) {
+        conditions.push(`(a.search_vector @@ plainto_tsquery('english', $${index}) OR a.title ILIKE $${index + 1} OR a.description ILIKE $${index + 1})`);
+        values.push(filters.search);
+        values.push(`%${filters.search}%`);
+        index += 2;
+      } else {
+        // Schema without migration 004: plain ILIKE only
+        conditions.push(`(a.title ILIKE $${index} OR a.description ILIKE $${index})`);
+        values.push(`%${filters.search}%`);
+        index++;
+      }
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = Math.min(Number(filters.limit) || 50, 100);

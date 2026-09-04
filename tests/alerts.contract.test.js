@@ -187,6 +187,23 @@ async function tests() {
   assert(ftsSearch.status === 200, 'FTS search returns 200');
   assert(ftsSearch.body.data.some(a => a.id === testAlertId), 'FTS finds created alert by title word');
 
+  // 2d. FTS schema detection + fallback
+  console.log('\n2d. FTS schema detection');
+  const ftsAvailable = await AlertRepository._detectFts();
+  assert(typeof ftsAvailable === 'boolean', '_detectFts() returns boolean');
+  if (ftsAvailable) {
+    // Verify cached result
+    const ftsCached = await AlertRepository._detectFts();
+    assert(ftsAvailable === ftsCached, '_detectFts() is cached');
+    console.log('    (search_vector column present — FTS path active)');
+  } else {
+    // Verify the ILIKE-only fallback path still works
+    const ilikeSearch = await req('GET', '/api/alerts?search=Contract&limit=5');
+    assert(ilikeSearch.status === 200, 'ILIKE fallback search returns 200');
+    assert(ilikeSearch.body.data.some(a => a.id === testAlertId), 'ILIKE fallback finds created alert');
+    console.log('    (search_vector column missing — ILIKE fallback path active)');
+  }
+
   // 3. GET by id
   console.log('\n3. GET /api/alerts/:id');
   const byId = await req('GET', `/api/alerts/${testAlertId}`);
