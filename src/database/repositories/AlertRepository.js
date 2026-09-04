@@ -68,6 +68,11 @@ class AlertRepository {
     return this.findById(id);
   }
 
+  async getAuthorId(id) {
+    const result = await query('SELECT author_id FROM alerts WHERE id = $1', [id]);
+    return result.rows[0] ? result.rows[0].author_id : null;
+  }
+
   async remove(id) { await query('DELETE FROM alerts WHERE id = $1', [id]); }
 
   async incrementViews(id) { await query('UPDATE alerts SET views = views + 1 WHERE id = $1', [id]); }
@@ -94,7 +99,6 @@ class AlertRepository {
     if (!row) return null;
     return {
       id: row.id,
-      author_id: row.author_id,
       title: row.title,
       description: row.description,
       category: row.category,
