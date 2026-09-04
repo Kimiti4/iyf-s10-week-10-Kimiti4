@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "test": "node daily-challenges.test.js",
     "test:alerts": "node tests/alerts.contract.test.js",
+    "test:ratelimit": "node tests/rateLimiter.test.js",
     "db:migrate": "node scripts/migrate.js",
     "db:migrate:002": "node scripts/migrations/002_add_alert_constraints.js",
     "db:migrate:004": "node scripts/migrations/004_geographic_and_fts.js",

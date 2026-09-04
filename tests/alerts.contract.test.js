@@ -17,9 +17,12 @@
  *
  * Requires:  DATABASE_URL pointing to a test database
  *
- * Note: This test requires a live database connection.
- * For unit tests that don't need a DB, see alerts.unit.test.js
+ * The test sets NODE_ENV=test so the rate limiter middleware
+ * is bypassed. This lets the suite exercise the full validation
+ * + authorization contract in a single run. Rate limiter
+ * behavior itself is verified by a separate test.
  */
+process.env.NODE_ENV = 'test';
 require('dotenv').config();
 const http = require('http');
 const app = require('../src/app');
@@ -71,6 +74,10 @@ async function req(method, path, body = null, authToken = null) {
       headers: { 'Content-Type': 'application/json' },
     };
     if (authToken) opts.headers['Authorization'] = `Bearer ${authToken}`;
+    if (body) {
+      const payload = JSON.stringify(body);
+      opts.headers['Content-Length'] = Buffer.byteLength(payload);
+    }
     const r = http.request(opts, (res) => {
       let data = '';
       res.on('data', (c) => (data += c));
@@ -169,17 +176,60 @@ async function tests() {
   assert(searched.status === 200, 'search filter returns 200');
   assert(searched.body.data.some(a => a.id === testAlertId), 'search finds created alert');
 
-  // 2b. Structured geographic filters
-  console.log('\n2b. Structured geographic filters');
-  const byCounty = await req('GET', '/api/alerts?county=Nairobi&limit=5');
+  // 2b. Structured geographic filters (semantic — verify returned data matches the filter)
+  console.log('\n2b. Structured geographic filters (semantic)');
+  // Create two more alerts with distinct settlement/ward so we can verify
+  // the filter narrows the result set, not just returns 200.
+  const siblingA = await AlertRepository.create({
+    title: 'Sibling A — Karen',
+    description: 'Distinct alert in a different settlement for filter testing',
+    category: 'security',
+    severity: 'info',
+    location: 'Karen, Nairobi',
+    county: 'Nairobi',
+    settlement: 'Karen',
+    ward: 'Karen Ward',
+    authorId: testUserId,
+  });
+  const siblingB = await AlertRepository.create({
+    title: 'Sibling B — Kileleshwa',
+    description: 'Another distinct alert in a third settlement for filter testing',
+    category: 'security',
+    severity: 'info',
+    location: 'Kileleshwa, Nairobi',
+    county: 'Nairobi',
+    settlement: 'Kileleshwa',
+    ward: 'Kileleshwa Ward',
+    authorId: testUserId,
+  });
+
+  // county filter — must include Westlands + Karen + Kileleshwa, but not (e.g.) Mombasa
+  const byCounty = await req('GET', '/api/alerts?county=Nairobi&limit=100');
   assert(byCounty.status === 200, 'county filter returns 200');
-  assert(byCounty.body.data.some(a => a.id === testAlertId), 'county=Nairobi finds created alert');
+  const countyRows = byCounty.body.data;
+  assert(countyRows.some(a => a.id === testAlertId), 'county=Nairobi includes Westlands alert');
+  assert(countyRows.some(a => a.id === siblingA.id), 'county=Nairobi includes Karen alert');
+  assert(countyRows.some(a => a.id === siblingB.id), 'county=Nairobi includes Kileleshwa alert');
 
-  const bySettlement = await req('GET', '/api/alerts?settlement=Westlands&limit=5');
+  // settlement filter — only Westlands alert should match
+  const bySettlement = await req('GET', '/api/alerts?settlement=Westlands&limit=100');
   assert(bySettlement.status === 200, 'settlement filter returns 200');
+  const settlementRows = bySettlement.body.data;
+  assert(settlementRows.some(a => a.id === testAlertId), 'settlement=Westlands includes Westlands alert');
+  assert(!settlementRows.some(a => a.id === siblingA.id), 'settlement=Westlands excludes Karen alert');
+  assert(!settlementRows.some(a => a.id === siblingB.id), 'settlement=Westlands excludes Kileleshwa alert');
 
-  const byWard = await req('GET', '/api/alerts?ward=Westlands&limit=5');
+  // ward filter — only Westlands Ward alert should match
+  const byWard = await req('GET', '/api/alerts?ward=Westlands&limit=100');
   assert(byWard.status === 200, 'ward filter returns 200');
+  const wardRows = byWard.body.data;
+  assert(wardRows.some(a => a.id === testAlertId), 'ward=Westlands includes Westlands alert');
+  assert(!wardRows.some(a => a.id === siblingA.id), 'ward=Westlands excludes Karen alert');
+  assert(!wardRows.some(a => a.id === siblingB.id), 'ward=Westlands excludes Kileleshwa alert');
+
+  // Cleanup the sibling alerts so they don't interfere with later tests
+  await AlertRepository.remove(siblingA.id);
+  await AlertRepository.remove(siblingB.id);
 
   // 2c. Full-text search on title (FTS path)
   console.log('\n2c. Full-text search');

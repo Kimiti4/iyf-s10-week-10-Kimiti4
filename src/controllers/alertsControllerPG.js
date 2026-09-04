@@ -8,6 +8,8 @@ const getAlerts = asyncHandler(async (req, res) => {
     severity: req.query.severity,
     verificationLevel: req.query.verificationLevel,
     county: req.query.county,
+    settlement: req.query.settlement,
+    ward: req.query.ward,
     search: req.query.search,
     page: req.query.page,
     limit: req.query.limit,
