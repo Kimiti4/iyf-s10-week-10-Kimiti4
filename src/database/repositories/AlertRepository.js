@@ -9,11 +9,24 @@ class AlertRepository {
     if (filters.category) { conditions.push(`a.category = $${index++}`); values.push(filters.category); }
     if (filters.severity) { conditions.push(`a.severity = $${index++}`); values.push(filters.severity); }
     if (filters.verificationLevel) { conditions.push(`a.verification_level = $${index++}`); values.push(filters.verificationLevel); }
-    if (filters.county) { conditions.push(`a.location ILIKE $${index++}`); values.push(`%${filters.county}%`); }
-    if (filters.search) {
-      conditions.push(`(a.title ILIKE $${index} OR a.description ILIKE $${index})`);
-      values.push(`%${filters.search}%`);
+    // Structured county filter (preferred) with ILIKE fallback on location for legacy rows
+    if (filters.county) {
+      conditions.push(`(a.county ILIKE $${index} OR a.location ILIKE $${index})`);
+      values.push(`%${filters.county}%`);
       index++;
+    }
+    if (filters.settlement) {
+      conditions.push(`a.settlement ILIKE $${index++}`); values.push(`%${filters.settlement}%`);
+    }
+    if (filters.ward) {
+      conditions.push(`a.ward ILIKE $${index++}`); values.push(`%${filters.ward}%`);
+    }
+    if (filters.search) {
+      // Prefer full-text search via tsvector when available, fall back to ILIKE
+      conditions.push(`(a.search_vector @@ plainto_tsquery('english', $${index}) OR a.title ILIKE $${index + 1} OR a.description ILIKE $${index + 1})`);
+      values.push(filters.search);
+      values.push(`%${filters.search}%`);
+      index += 2;
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = Math.min(Number(filters.limit) || 50, 100);
@@ -45,19 +58,26 @@ class AlertRepository {
 
   async create(data) {
     const result = await query(`INSERT INTO alerts
-      (title, description, category, severity, location, longitude, latitude, images, tags, author_id, organization_id, expires_at, radius_km)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`, [
+      (title, description, category, severity, location, longitude, latitude, images, tags, author_id, organization_id, expires_at, radius_km, county, settlement, ward)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`, [
       data.title, data.description, data.category, data.severity, data.location || null,
       data.coordinates?.[0] || null, data.coordinates?.[1] || null,
       JSON.stringify(data.images || []), data.tags || [], data.authorId, data.organizationId || null,
       data.expiresAt ? new Date(data.expiresAt) : null,
-      data.radius ? Number(data.radius) : null
+      data.radius != null ? Number(data.radius) : null,
+      data.county || null,
+      data.settlement || null,
+      data.ward || null,
     ]);
     return this.findById(result.rows[0].id);
   }
 
   async update(id, updates) {
-    const allowed = { title: 'title', description: 'description', location: 'location', tags: 'tags', status: 'status' };
+    const allowed = {
+      title: 'title', description: 'description', location: 'location',
+      tags: 'tags', status: 'status', county: 'county',
+      settlement: 'settlement', ward: 'ward',
+    };
     const fields = []; const values = []; let index = 1;
     for (const [key, column] of Object.entries(allowed)) {
       if (updates[key] !== undefined) { fields.push(`${column} = $${index++}`); values.push(updates[key]); }
@@ -106,12 +126,15 @@ class AlertRepository {
       status: row.status,
       verificationLevel: row.verification_level,
       location: row.location,
+      county: row.county || null,
+      settlement: row.settlement || null,
+      ward: row.ward || null,
       coordinates: row.longitude == null ? null : [row.longitude, row.latitude],
       images: row.images || [],
       tags: row.tags || [],
       views: row.views,
       expiresAt: row.expires_at || null,
-      radius: row.radius_km || null,
+      radius: row.radius_km == null ? null : Number(row.radius_km),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       author: {

@@ -127,9 +127,12 @@ async function tests() {
     description: 'Test description for contract validation',
     category: 'security',
     severity: 'warning',
-    location: 'Westlands',
+    location: 'Westlands, Nairobi',
+    county: 'Nairobi',
+    settlement: 'Westlands',
+    ward: 'Westlands Ward',
     coordinates: [36.8, -1.3],
-    radius: 5,
+    radius: 1.5,
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
     tags: ['test'],
     authorId: testUserId,
@@ -144,8 +147,11 @@ async function tests() {
   assert(created.verificationLevel === 'unverified', 'verificationLevel = unverified');
   assert(typeof created.createdAt === 'string' || created.createdAt instanceof Date, 'createdAt present');
   assert(typeof created.coordinates[0] === 'number', 'coordinates[0] is number');
-  assert(typeof created.radius === 'number' && created.radius === 5, 'radius persisted');
+  assert(typeof created.radius === 'number' && Math.abs(created.radius - 1.5) < 0.001, 'radius persisted as decimal (1.5)');
   assert(created.expiresAt !== null, 'expiresAt persisted');
+  assert(created.county === 'Nairobi', 'county persisted');
+  assert(created.settlement === 'Westlands', 'settlement persisted');
+  assert(created.ward === 'Westlands Ward', 'ward persisted');
 
   // 2. GET list (pagination, filters)
   console.log('\n2. GET /api/alerts');
@@ -162,6 +168,24 @@ async function tests() {
   const searched = await req('GET', '/api/alerts?search=Contract&limit=5');
   assert(searched.status === 200, 'search filter returns 200');
   assert(searched.body.data.some(a => a.id === testAlertId), 'search finds created alert');
+
+  // 2b. Structured geographic filters
+  console.log('\n2b. Structured geographic filters');
+  const byCounty = await req('GET', '/api/alerts?county=Nairobi&limit=5');
+  assert(byCounty.status === 200, 'county filter returns 200');
+  assert(byCounty.body.data.some(a => a.id === testAlertId), 'county=Nairobi finds created alert');
+
+  const bySettlement = await req('GET', '/api/alerts?settlement=Westlands&limit=5');
+  assert(bySettlement.status === 200, 'settlement filter returns 200');
+
+  const byWard = await req('GET', '/api/alerts?ward=Westlands&limit=5');
+  assert(byWard.status === 200, 'ward filter returns 200');
+
+  // 2c. Full-text search on title (FTS path)
+  console.log('\n2c. Full-text search');
+  const ftsSearch = await req('GET', '/api/alerts?search=Contract&limit=5');
+  assert(ftsSearch.status === 200, 'FTS search returns 200');
+  assert(ftsSearch.body.data.some(a => a.id === testAlertId), 'FTS finds created alert by title word');
 
   // 3. GET by id
   console.log('\n3. GET /api/alerts/:id');

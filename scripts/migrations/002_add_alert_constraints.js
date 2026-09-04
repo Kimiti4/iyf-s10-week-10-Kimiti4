@@ -30,8 +30,8 @@ async function up() {
   // 3. Add radius_km column if missing
   console.log('  Adding radius_km column if missing...');
   try {
-    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS radius_km INTEGER`);
-    console.log('    radius_km column ready');
+    await query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS radius_km NUMERIC(6,2)`);
+    console.log('    radius_km column ready (NUMERIC(6,2))');
   } catch (e) {
     console.log('    radius_km column already exists');
   }
